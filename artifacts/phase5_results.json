@@ -1,0 +1,67 @@
+{
+  "offline": true,
+  "k": 4,
+  "clustering_quality": {
+    "ARI": 0.41886050269535446,
+    "NMI": 0.44194368532059836
+  },
+  "cluster_alignment_accuracy": 0.7143986299565275,
+  "bootstrapped_label_accuracy": 0.7143986299565275,
+  "fidelity_to_clustering": 0.9532587228439763,
+  "ablation": [
+    {
+      "condition": "Ceiling (tf-idf)",
+      "labels used": "100% true labels",
+      "accuracy": 0.8841342988808426,
+      "% of ceiling": 1.0
+    },
+    {
+      "condition": "Ceiling (embeddings)",
+      "labels used": "100% true labels",
+      "accuracy": 0.8630678077682686,
+      "% of ceiling": 0.9761727475800448
+    },
+    {
+      "condition": "Bootstrapped (tf-idf)",
+      "labels used": "LLM labels, 0 human",
+      "accuracy": 0.728110599078341,
+      "% of ceiling": 0.8235294117647058
+    },
+    {
+      "condition": "Bootstrapped (embeddings)",
+      "labels used": "LLM labels, 0 human",
+      "accuracy": 0.7314022383146808,
+      "% of ceiling": 0.8272524199553241
+    },
+    {
+      "condition": "Hybrid (100 true + rest)",
+      "labels used": "100 human labels",
+      "accuracy": 0.7300855826201448,
+      "% of ceiling": 0.8257632166790767
+    },
+    {
+      "condition": "Small supervised (100)",
+      "labels used": "100 human labels",
+      "accuracy": 0.5997366688610928,
+      "% of ceiling": 0.6783320923306031
+    },
+    {
+      "condition": "Random floor",
+      "labels used": "shuffled labels",
+      "accuracy": 0.2488479262672811,
+      "% of ceiling": 0.28145941921072226
+    }
+  ],
+  "label_map": {
+    "Game / Season": "Sports",
+    "Iraq / President": "World",
+    "Microsoft / New": "Sci/Tech",
+    "Oil / Prices": "Business"
+  },
+  "cost": {
+    "api_cost_usd": 0.002,
+    "human_cost_usd": 948.88,
+    "human_hours": 38.0,
+    "ratio": 474437.5
+  }
+}

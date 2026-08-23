@@ -1,0 +1,30 @@
+[
+  {
+    "cluster": 0,
+    "label": "Microsoft / New",
+    "description": "offline stand-in label for cluster 0",
+    "coherent": true,
+    "confidence": 1.0
+  },
+  {
+    "cluster": 1,
+    "label": "Game / Season",
+    "description": "offline stand-in label for cluster 1",
+    "coherent": true,
+    "confidence": 1.0
+  },
+  {
+    "cluster": 2,
+    "label": "Oil / Prices",
+    "description": "offline stand-in label for cluster 2",
+    "coherent": true,
+    "confidence": 1.0
+  },
+  {
+    "cluster": 3,
+    "label": "Iraq / President",
+    "description": "offline stand-in label for cluster 3",
+    "coherent": true,
+    "confidence": 1.0
+  }
+]

@@ -1,0 +1,8 @@
+condition,labels used,accuracy,% of ceiling
+Ceiling (tf-idf),100% true labels,0.8841342988808426,1.0
+Ceiling (embeddings),100% true labels,0.8630678077682686,0.9761727475800448
+Bootstrapped (tf-idf),"LLM labels, 0 human",0.728110599078341,0.8235294117647058
+Bootstrapped (embeddings),"LLM labels, 0 human",0.7314022383146808,0.8272524199553241
+Hybrid (100 true + rest),100 human labels,0.7300855826201448,0.8257632166790767
+Small supervised (100),100 human labels,0.5997366688610928,0.6783320923306031
+Random floor,shuffled labels,0.2488479262672811,0.28145941921072226
