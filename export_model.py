@@ -62,6 +62,33 @@ def main() -> None:
     _require(C.P_BOOTSTRAPPED, "Run `python run_pipeline.py --offline` first.")
     _require(C.P_QUARANTINE, "The quarantined true labels are needed for the ceiling model.")
 
+    metrics = {}
+    if C.P_RESULTS.exists():
+        metrics = json.loads(C.P_RESULTS.read_text())
+    else:
+        raise SystemExit(
+            "\nphase5_results.json is missing. It holds label_map, which is "
+            "required to align the two models onto the same class names.\n"
+        )
+
+    if metrics.get("offline"):
+        print(
+            "\n" + "!" * 68 + "\n"
+            "  These artifacts came from the OFFLINE STUB. The cluster labels\n"
+            "  are top-term strings, not Gemini output, and every number in\n"
+            "  phase5_results.json was produced without an API call.\n"
+            "  Re-run without --offline before publishing this demo.\n"
+            + "!" * 68 + "\n"
+        )
+
+    label_map = metrics.get("label_map") or {}
+    if not label_map:
+        raise SystemExit(
+            "\nNo label_map in phase5_results.json. Without it the bootstrapped\n"
+            "model predicts cluster names and the ceiling model predicts true\n"
+            "classes, so they can never be compared.\n"
+        )
+
     boot = pd.read_csv(C.P_BOOTSTRAPPED)
     text_col = _pick(boot, ["text", "clean_text", "cleaned", "content", "document"], "text")
     boot_col = _pick(
@@ -71,7 +98,20 @@ def main() -> None:
     )
 
     texts = boot[text_col].astype(str)
-    y_boot = boot[boot_col].astype(str)
+    y_boot_raw = boot[boot_col].astype(str)
+
+    # Translate cluster labels into the true-class vocabulary. This mapping is
+    # the pipeline's own, taken from phase5_results.json unchanged -- it is the
+    # same alignment the reported accuracy was computed under.
+    unmapped = sorted(set(y_boot_raw) - set(label_map))
+    if unmapped:
+        raise SystemExit(
+            f"\nlabel_map does not cover these cluster labels: {unmapped}\n"
+            f"It maps: {label_map}\n"
+            f"The artifacts are probably from two different runs.\n"
+        )
+    y_boot = y_boot_raw.map(label_map)
+    print(f"label_map applied: {label_map}")
 
     truth = pd.read_csv(C.P_QUARANTINE)
     true_col = _pick(truth, [C.LABEL_COL, "true_label", "label", "Class Index"], "true label")
@@ -101,12 +141,6 @@ def main() -> None:
     clf_boot = fit(y_boot)
     clf_ceil = fit(y_true)
 
-    metrics = {}
-    if C.P_RESULTS.exists():
-        metrics = json.loads(C.P_RESULTS.read_text())
-    else:
-        print("warning: phase5_results.json missing, demo will omit the metrics panel")
-
     OUT.parent.mkdir(exist_ok=True)
     joblib.dump(
         {
@@ -118,6 +152,8 @@ def main() -> None:
             "metrics": metrics,
             "k": C.K_FINAL,
             "embedding": "tfidf",
+            "offline_artifacts": bool(metrics.get("offline")),
+            "label_map": label_map,
             "n_rows": int(len(texts)),
             "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         },
