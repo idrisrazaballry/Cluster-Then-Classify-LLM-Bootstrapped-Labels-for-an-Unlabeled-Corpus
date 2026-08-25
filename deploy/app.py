@@ -20,6 +20,7 @@ VEC = BUNDLE["vectorizer"]
 CLF_BOOT = BUNDLE["clf_bootstrap"]
 CLF_CEIL = BUNDLE["clf_ceiling"]
 METRICS = BUNDLE.get("metrics", {})
+OFFLINE = BUNDLE.get("offline_artifacts", False)
 
 
 # --- text cleaning ---------------------------------------------------------
@@ -121,6 +122,14 @@ EXAMPLES = [
 def build():
     with gr.Blocks(title="Cluster Then Classify", theme=gr.themes.Soft()) as demo:
         gr.Markdown(INTRO)
+        if OFFLINE:
+            gr.Markdown(
+                "> **Provenance warning.** This bundle was built from offline "
+                "stub artifacts. The cluster names were generated from top "
+                "terms, not by an LLM, and the accuracy figures below were "
+                "produced without an API call. Re-run the pipeline without "
+                "`--offline` before treating any of this as a result."
+            )
 
         inp = gr.Textbox(
             lines=4,
