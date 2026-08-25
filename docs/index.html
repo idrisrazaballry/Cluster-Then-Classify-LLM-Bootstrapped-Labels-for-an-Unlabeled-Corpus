@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cluster Then Classify — bootstrapped labels for an unlabeled corpus</title>
+<meta name="description" content="Two news classifiers compared live in the browser: one trained on labels an LLM invented from clusters, one trained on ground truth.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#faf8f5; --ink:#1b1a18; --muted:#6c6660; --rule:#e3ddd4;
+    --boot:#c2410c; --ceil:#3f6212; --card:#fffdfa;
+    --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+       font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:56px 24px 96px}
+  h1{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:clamp(38px,6vw,60px);
+     line-height:1.05;letter-spacing:-.01em;margin:0 0 18px}
+  .lede{font-size:18px;color:#44403c;max-width:62ch;margin:0 0 14px}
+  .lede em{font-style:italic}
+  .rule{height:1px;background:var(--rule);margin:36px 0}
+  label{display:block;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+        color:var(--muted);margin-bottom:8px}
+  textarea{width:100%;min-height:96px;padding:14px 16px;border:1px solid var(--rule);
+           border-radius:6px;background:var(--card);font-family:var(--sans);font-size:16px;
+           line-height:1.5;color:var(--ink);resize:vertical}
+  textarea:focus{outline:2px solid var(--boot);outline-offset:1px;border-color:transparent}
+  .row{display:flex;gap:12px;align-items:center;margin-top:14px;flex-wrap:wrap}
+  button{font-family:var(--sans);font-size:15px;font-weight:500;padding:11px 22px;
+         border-radius:6px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+         cursor:pointer;transition:opacity .15s}
+  button:hover:not(:disabled){opacity:.84}
+  button:disabled{opacity:.4;cursor:default}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .chip{font-size:13px;padding:6px 12px;border:1px solid var(--rule);border-radius:999px;
+        background:transparent;color:#44403c;cursor:pointer;font-weight:400}
+  .chip:hover{background:#f0ebe4;border-color:#cfc7bb}
+  .verdict{margin:30px 0 22px;font-size:17px;min-height:1.6em}
+  .verdict strong{font-weight:600}
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:640px){.panels{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--rule);border-radius:8px;padding:18px 18px 14px;background:var(--card)}
+  .panel h2{margin:0;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+            font-weight:600;color:var(--muted)}
+  .panel .sub{font-size:12px;color:var(--muted);margin:2px 0 16px}
+  .top{font-family:"Instrument Serif",Georgia,serif;font-size:34px;line-height:1.1;margin:0 0 16px}
+  .b-boot .top{color:var(--boot)} .b-ceil .top{color:var(--ceil)}
+  .bar{margin-bottom:11px}
+  .bar-top{display:flex;justify-content:space-between;font-family:var(--mono);
+           font-size:12.5px;margin-bottom:4px}
+  .track{height:5px;background:#efe9e1;border-radius:3px;overflow:hidden}
+  .fill{height:100%;border-radius:3px;width:0;transition:width .45s cubic-bezier(.2,.7,.3,1)}
+  .b-boot .fill{background:var(--boot)} .b-ceil .fill{background:var(--ceil)}
+  .note{margin:22px 0;font-size:15.5px;color:#44403c;max-width:66ch}
+  .note b{font-weight:600;color:var(--ink)}
+  h3{font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:26px;margin:44px 0 14px}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--rule)}
+  th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  td.n{font-family:var(--mono);text-align:right}
+  tr.hi td{background:#fdf6ee}
+  footer{margin-top:56px;padding-top:22px;border-top:1px solid var(--rule);
+         font-size:14px;color:var(--muted)}
+  a{color:var(--boot)}
+  .status{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Cluster&nbsp;Then&nbsp;Classify</h1>
+
+  <p class="lede">Nobody labelled this training data. 7,591 news stories were clustered,
+  Gemini was shown each cluster's top terms and asked to name it — without being told what
+  the taxonomy was — and those names became the training labels.</p>
+
+  <p class="lede">On the left is the classifier that came out. On the right is the same
+  model trained on the real labels: the ceiling you would pay an annotator to reach.
+  <em>Try to make them disagree.</em></p>
+
+  <div class="rule"></div>
+
+  <label for="inp">News headline or story</label>
+  <textarea id="inp" placeholder="Paste a headline…"></textarea>
+  <div class="row">
+    <button id="go" disabled>Compare the two models</button>
+    <span class="status" id="status">Loading model…</span>
+  </div>
+  <div class="chips" id="chips"></div>
+
+  <p class="verdict" id="verdict"></p>
+
+  <div class="panels">
+    <div class="panel b-boot">
+      <h2>Bootstrapped</h2>
+      <p class="sub">0 human labels</p>
+      <p class="top" id="top-boot">—</p>
+      <div id="bars-boot"></div>
+    </div>
+    <div class="panel b-ceil">
+      <h2>Ceiling</h2>
+      <p class="sub">100% true labels</p>
+      <p class="top" id="top-ceil">—</p>
+      <div id="bars-ceil"></div>
+    </div>
+  </div>
+
+  <h3>What to notice</h3>
+
+  <p class="note"><b>Business is the weak class.</b> Recall 0.36 against precision 0.87 —
+  it finds barely a third of Business stories, but is usually right when it does. The cause
+  sits upstream of the classifier: k-means split Business across two clusters, and 760 of
+  those documents landed in the cluster Gemini named World Politics. No labelling strategy
+  recovers a distinction the clustering never drew.</p>
+
+  <p class="note"><b>The seductive number.</b> This classifier scores 0.955 against its own
+  held-out split while being 0.716 accurate against ground truth. That 95.5% is fidelity to
+  k-means, not accuracy — it measures how faithfully the model reproduces the clustering,
+  mistakes included. It is the number most likely to be quoted and the one that means least.</p>
+
+  <p class="note"><b>What the LLM actually bought.</b> Swapping Gemini's labels for
+  deterministic top-term strings changes accuracy by exactly zero, because renaming a cluster
+  moves no documents. The LLM contributes readable class names derived without ground truth.
+  The 81% of ceiling comes from the clustering.</p>
+
+  <h3>Ablation</h3>
+  <table id="abl"><tbody></tbody></table>
+
+  <footer>
+    Everything above runs in your browser — the model is 40,776 TF-IDF features and a
+    logistic regression, evaluated in JavaScript. No server, no inference API. The language
+    model was called once, at training time, for a fifth of a cent.
+    <br><br>
+    <a id="repo" href="#">Source and full write-up on GitHub</a>
+  </footer>
+
+</div>
+
+<script>
+const REPO = "https://github.com/idrisrazaballry/Cluster-Then-Classify-LLM-Bootstrapped-Labels-for-an-Unlabeled-Corpus";
+document.getElementById("repo").href = REPO;
+
+const EXAMPLES = [
+  "Red Sox complete stunning comeback to reach the World Series after four straight wins.",
+  "Peace talks stall as delegates fail to agree on a troop withdrawal timetable.",
+  "Researchers unveil a telescope array capable of imaging planets around nearby stars.",
+  "Chip maker beats quarterly earnings expectations as demand for AI accelerators surges.",
+  "Regulators open an antitrust probe into the search giant's advertising business.",
+  "Shares tumbled after the airline warned of weaker demand on transatlantic routes."
+];
+
+/* ---- cleaning: a direct translation of data.clean_field() ---------------- */
+const SRC = "AP|Reuters|AFP|Forbes\\.com|USATODAY\\.com|SPACE\\.com|NewsFactor|Ziff Davis|"
+          + "PC World|InfoWorld|TechWeb|CNET|washingtonpost\\.com|The Motley Fool|"
+          + "Investor's Business Daily|Canadian Press|MacCentral|CBS MarketWatch\\.com|AP Online";
+
+const RE_NUM_ENT   = new RegExp("(?<!&)#(\\d+);", "g");
+const RE_NAMED_ENT = new RegExp("(?<!&)\\b(quot|amp|lt|gt|nbsp|apos);", "g");
+const RE_TAG       = /<[^>]{0,400}>/g;
+const RE_TICKER    = /\b[A-Z]{1,5}\.[A-Z]{1,3}\b/g;
+const RE_SRC_PREFIX= new RegExp("^\\s*(" + SRC + ")\\s*[-\u2013:]\\s*");
+const RE_DATELINE  = new RegExp("^\\s*[A-Z][A-Za-z .]{2,25}\\s*\\((" + SRC + ")\\)\\s*[-\u2013]\\s*");
+const RE_SRC_PAREN = new RegExp("\\s*\\((" + SRC + ")\\)", "g");
+const RE_SPACE_PUNCT = /\s+([.,;:!?])/g;
+const RE_WS = /\s+/g;
+
+/* html.unescape via the browser's own entity table; textarea treats markup as
+   text, so tags inside the input are decoded but never parsed. */
+const _ta = document.createElement("textarea");
+function unescapeHTML(s){ _ta.innerHTML = s; return _ta.value; }
+
+function cleanField(s){
+  s = s.split("\\\\").join(" ").split("\\").join(" ");
+  s = s.replace(RE_NUM_ENT, "&#$1;");
+  s = s.replace(RE_NAMED_ENT, "&$1;");
+  s = unescapeHTML(unescapeHTML(s));
+  s = s.replace(RE_TAG, " ");
+  s = s.replace(RE_TICKER, " ");
+  s = s.replace(RE_SRC_PREFIX, "");
+  s = s.replace(RE_DATELINE, "");
+  s = s.replace(RE_SRC_PAREN, " ");
+  s = s.replace(RE_SPACE_PUNCT, "$1");
+  return s.replace(RE_WS, " ").trim();
+}
+
+/* ---- tf-idf + logistic regression --------------------------------------- */
+/* Python's \w is unicode-aware; JS \w is not, so match letters/digits/_ via
+   unicode property escapes. Maximal runs of 2+ equal \b\w\w+\b. */
+const RE_TOKEN = /[\p{L}\p{N}_]{2,}/gu;
+
+function tokenize(text){
+  const w = text.toLowerCase().match(RE_TOKEN) || [];
+  const out = w.slice();
+  for (let i = 0; i + 1 < w.length; i++) out.push(w[i] + " " + w[i+1]);
+  return out;
+}
+
+let M = null;
+
+function vectorize(text){
+  const counts = new Map();
+  for (const tok of tokenize(text)){
+    const j = M.vocab[tok];
+    if (j !== undefined) counts.set(j, (counts.get(j) || 0) + 1);
+  }
+  const vec = [];
+  let sq = 0;
+  for (const [j, c] of counts){
+    const v = (1 + Math.log(c)) * M.idf[j];
+    vec.push([j, v]); sq += v * v;
+  }
+  const norm = Math.sqrt(sq);
+  if (norm > 0) for (const p of vec) p[1] /= norm;
+  return vec;
+}
+
+function predict(vec, m){
+  const K = M.classes.length, scores = new Array(K);
+  for (let k = 0; k < K; k++){
+    let s = m.intercept[k], row = m.coef[k];
+    for (const [j, w] of vec) s += w * row[j];
+    scores[k] = s;
+  }
+  const hi = Math.max(...scores);
+  const ex = scores.map(s => Math.exp(s - hi));
+  const tot = ex.reduce((a,b) => a+b, 0);
+  return M.classes.map((c,k) => [c, ex[k]/tot]).sort((a,b) => b[1]-a[1]);
+}
+
+/* ---- rendering ----------------------------------------------------------- */
+function drawBars(el, ranked){
+  el.innerHTML = ranked.map(([c,p]) =>
+    `<div class="bar">
+       <div class="bar-top"><span>${c}</span><span>${(p*100).toFixed(1)}%</span></div>
+       <div class="track"><div class="fill" data-w="${(p*100).toFixed(2)}"></div></div>
+     </div>`).join("");
+  requestAnimationFrame(() => {
+    el.querySelectorAll(".fill").forEach(f => f.style.width = f.dataset.w + "%");
+  });
+}
+
+function run(){
+  const raw = document.getElementById("inp").value.trim();
+  const verdict = document.getElementById("verdict");
+  if (!raw){ verdict.textContent = "Enter a headline above."; return; }
+
+  const vec = vectorize(cleanField(raw));
+  const b = predict(vec, M.boot), c = predict(vec, M.ceil);
+
+  document.getElementById("top-boot").textContent = b[0][0];
+  document.getElementById("top-ceil").textContent = c[0][0];
+  drawBars(document.getElementById("bars-boot"), b);
+  drawBars(document.getElementById("bars-ceil"), c);
+
+  if (vec.length === 0){
+    verdict.innerHTML = "<strong>No recognised terms.</strong> None of the words here appear "
+      + "in the 40,776-feature vocabulary, so both models fall back to their priors.";
+  } else if (b[0][0] === c[0][0]){
+    verdict.innerHTML = `<strong>Both say ${b[0][0]}.</strong> Agreement is the common case — `
+      + `this is the 81% of ceiling reached without a single annotated example.`;
+  } else {
+    verdict.innerHTML = `<strong>They disagree.</strong> The bootstrapped model says `
+      + `${b[0][0]} at ${(b[0][1]*100).toFixed(0)}% confidence; trained on true labels it `
+      + `would say ${c[0][0]}. Business stories are where this happens most.`;
+  }
+}
+
+function buildTable(){
+  const rows = (M.metrics && M.metrics.ablation) || [];
+  if (!rows.length) return;
+  const t = document.querySelector("#abl tbody");
+  t.innerHTML = "<tr><th>Condition</th><th>Labels used</th>"
+    + "<th style='text-align:right'>Accuracy</th>"
+    + "<th style='text-align:right'>% of ceiling</th></tr>"
+    + rows.map(r => {
+        const hi = /Bootstrapped \(tf-idf\)/.test(r.condition) ? " class='hi'" : "";
+        return `<tr${hi}><td>${r.condition}</td><td>${r["labels used"]}</td>`
+             + `<td class="n">${r.accuracy.toFixed(3)}</td>`
+             + `<td class="n">${(r["% of ceiling"]*100).toFixed(1)}%</td></tr>`;
+      }).join("");
+}
+
+fetch("model.json")
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(m => {
+    M = m;
+    document.getElementById("go").disabled = false;
+    document.getElementById("status").textContent = "";
+    buildTable();
+    const chips = document.getElementById("chips");
+    chips.innerHTML = EXAMPLES.map((e,i) =>
+      `<button class="chip" data-i="${i}">${e.split(" ").slice(0,5).join(" ")}…</button>`).join("");
+    chips.addEventListener("click", ev => {
+      const btn = ev.target.closest(".chip");
+      if (!btn) return;
+      document.getElementById("inp").value = EXAMPLES[btn.dataset.i];
+      run();
+    });
+  })
+  .catch(err => {
+    document.getElementById("status").textContent =
+      "Could not load model.json (" + err.message + ").";
+  });
+
+document.getElementById("go").addEventListener("click", run);
+document.getElementById("inp").addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run();
+});
+</script>
+</body>
+</html>
