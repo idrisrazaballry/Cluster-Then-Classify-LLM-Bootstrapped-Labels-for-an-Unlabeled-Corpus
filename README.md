@@ -2,6 +2,10 @@
 
 **Building a labelled dataset from an unlabelled corpus, with no human annotation.**
 
+[**Try the live demo →**](https://idrisrazaballry.github.io/Cluster-Then-Classify-LLM-Bootstrapped-Labels-for-an-Unlabeled-Corpus/)
+Both classifiers run in your browser — TF-IDF and logistic regression
+reimplemented in JavaScript, no inference server.
+
 Cluster the documents, have an LLM name the clusters, propagate those names as
 training labels, and train a cheap classifier that runs without the LLM at
 inference. The question the project answers is not "does it work" but **how much
@@ -16,38 +20,69 @@ methodology; without it the final number is unfalsifiable.
 
 ## Results
 
-From `python run_pipeline.py --offline` — TF-IDF embeddings, deterministic
-stand-in labeller. **These are floor numbers.** MiniLM plus a real LLM should
-beat them; treat this as the smoke test that proves the plumbing.
+From `python run_pipeline.py` — one live Gemini call, no human labels.
+Gemini saw each cluster's top terms and returned Software And Technology,
+Sports News, Financial Markets, World Politics, without being told the taxonomy.
 
 | Condition | Labels used | Accuracy | % of ceiling |
 |---|---|---|---|
-| Ceiling (tf-idf) | 100% true labels | 0.884 | 100.0% |
-| Ceiling (embeddings) | 100% true labels | 0.863 | 97.6% |
-| **Bootstrapped (tf-idf)** | **LLM labels, 0 human** | **0.728** | **82.4%** |
-| Bootstrapped (embeddings) | LLM labels, 0 human | 0.731 | 82.7% |
-| Hybrid (100 true + rest) | 100 human labels | 0.730 | 82.6% |
-| Small supervised (100) | 100 human labels | 0.600 | 67.8% |
-| Random floor | shuffled labels | 0.249 | 28.1% |
+| Ceiling (tf-idf) | 100% true labels | 0.885 | 100.0% |
+| Ceiling (LSA) | 100% true labels | 0.868 | 98.1% |
+| **Bootstrapped (tf-idf)** | **LLM labels, 0 human** | **0.716** | **80.9%** |
+| Bootstrapped (LSA) | LLM labels, 0 human | 0.714 | 80.7% |
+| Hybrid (100 true + rest) | 100 human labels | 0.720 | 81.4% |
+| Small supervised (100) | 100 human labels | 0.589 | 66.5% |
+| Random floor | shuffled labels | 0.243 | 27.5% |
 
 Clustering ARI 0.419, NMI 0.442. Bootstrapped label accuracy 71.4%.
+API cost: $0.002, one call.
 
-**Three things to read off this table.**
+**Four things to read off this table.**
 
-*Bootstrapping beats hand-labelling 100 rows* (82.4% vs 67.8% of ceiling). That
+*Bootstrapping beats hand-labelling 100 rows* (80.9% vs 66.5% of ceiling). That
 is the result the project exists to establish.
 
-*The hybrid row barely moves* (82.6% vs 82.4%). Adding 100 true labels changed
+*The hybrid row barely moves* (81.4% vs 80.9%). Adding 100 true labels changed
 almost nothing, which says the bottleneck is not annotation volume — it is the
 cluster boundaries themselves. More human labels will not fix that; better
 separation would.
 
-*A classifier trained on bootstrapped labels scored 0.953 against its own
-held-out split* while being only 0.728 accurate against ground truth. That 95%
+*A classifier trained on bootstrapped labels scored 0.955 against its own
+held-out split* while being only 0.716 accurate against ground truth. That 95.5%
 is fidelity to KMeans, not accuracy. It is the most seductive number in the
 project and it means nothing.
 
-### Over-clustering helps
+*The LLM contributes naming, not accuracy.* An earlier run used a deterministic
+stand-in labeller that named clusters from their top terms — `Oil / Prices`
+instead of `Financial Markets`. Bootstrapped label accuracy was 71.4% either
+way, to sixteen decimal places, because renaming a cluster moves no documents.
+What the LLM buys is human-readable class names derived without ground truth;
+the 80.9% of ceiling comes from the clustering. Any claim that an LLM
+*classified* anything here would be false.
+
+### Known failure mode
+
+Business is the weak class: recall 0.36 against precision 0.87. The classifier
+finds barely a third of Business stories and is usually right when it does.
+
+The cause is upstream. KMeans splits Business across two clusters — 36% into the
+cluster that became Financial Markets, 40% into the one that became World
+Politics — so 760 Business documents carry a World label into training. World's
+precision drops to 0.57 as a result, while its recall reaches 0.90.
+
+| Class | Precision | Recall | F1 | Support |
+|---|---|---|---|---|
+| Business | 0.87 | 0.36 | 0.51 | 399 |
+| Sci/Tech | 0.70 | 0.69 | 0.69 | 358 |
+| Sports | 0.89 | 0.92 | 0.90 | 386 |
+| World | 0.57 | 0.90 | 0.70 | 376 |
+
+Business and Sci/Tech also blur — 400 Business documents sit in the Software And
+Technology cluster, and a chip maker's quarterly earnings is honestly both — but
+the Business/World split is the larger effect and the one that drives the
+number. No labelling strategy recovers a distinction the clustering never drew.
+
+### Over-clustering may help
 
 k does not have to equal the number of true classes. Surplus clusters map
 many-to-one onto classes, letting a broad class split into the sub-topics that
@@ -59,15 +94,10 @@ actually cluster:
 | 6 | 0.673 | 76.6% |
 | 8 | **0.807** | **91.8%** |
 
-Worth testing properly with real embeddings before drawing conclusions, but the
-direction is suggestive.
-
-### Known failure mode
-
-Business and Sci/Tech entangle. Cluster 0 holds 1,287 Sci/Tech and 400 Business
-documents; Business itself splits across two clusters (36%/40%). A story about a
-chip maker's quarterly earnings is honestly both, and no amount of tuning
-resolves a boundary the taxonomy itself does not draw cleanly.
+**These three rows are from the offline stub run and have not been reproduced
+live.** The k = 4 figure there was 0.728 against 0.716 in the live run, so treat
+the direction as suggestive and the magnitudes as unverified until the sweep is
+re-run.
 
 ---
 
@@ -82,32 +112,25 @@ Never hard-code the key in a notebook. It ends up in the file's history.
 
 ## Verification status
 
-**The offline path is fully verified. The three third-party integrations are
-not** — this sandbox has no network, so MiniLM, UMAP and the Gemini API were
-never executed.
-
 | Component | Status |
 |---|---|
 | Phase 0 cleaning + quarantine | run, all 5 artifact checks at zero |
 | Phase 2 clustering, k sweep, representatives | run at k = 4, 6, 8 |
-| Phase 3 labelling, propagation, spot check | run via a fake transport |
+| Phase 3 labelling, propagation, spot check | run |
 | Phase 3 retry loop + error explanations | run (404 / auth / 429 branches) |
 | Phase 4 classifiers | run |
 | Phase 5 alignment, ablations, error analysis | run |
-| `run_pipeline.py --offline` | run end to end from empty artifacts |
-| Notebooks 01 and 05 | executed cell by cell |
+| `run_pipeline.py` end to end | run, live Gemini |
+| Live Gemini call | run |
+| Browser demo | deployed |
 | **MiniLM embeddings** | **never run** |
 | **UMAP projection** | **never run** (PCA fallback tested) |
-| **Live Gemini call** | **never run** |
 
-`--offline` swaps only the network transport. `label_clusters`, `propagate`,
-`spot_check`, `call_llm` and its retry loop are the same functions a live run
-executes — a mock that short-circuited them would leave them untested, which
-would defeat the point of having an offline mode.
-
-The one thing still unexercised is the HTTP request itself. Every likely failure
-of that request is handled with a named message: a retired model id, a bad key,
-and rate limiting each print what to change rather than a raw stack trace.
+**The rows labelled "embeddings" are LSA, not MiniLM.** Phase 1 loads a cached
+100-dimensional matrix — TruncatedSVD over TF-IDF, not a sentence transformer,
+which would be 384-dimensional. MiniLM has never executed in this environment.
+Both `Ceiling (LSA)` and `Bootstrapped (LSA)` above should be read as a
+dimensionality-reduction comparison, not as evidence about sentence embeddings.
 
 Run the preflight first — it fails at the exact broken line instead of thirty
 minutes into a full run:
@@ -121,13 +144,15 @@ python verify_setup.py --llm     # plus one real API call, a fraction of a cent
 
 ```bash
 python run_pipeline.py --offline        # no network, no API key, no cost
-python run_pipeline.py                  # MiniLM + Gemini, the real run
+python run_pipeline.py                  # the real run
 python run_pipeline.py --k 8 --sweep --spot-check
 ```
 
-Run `--offline` first. It exercises every stage using TF-IDF instead of MiniLM
-and a deterministic stand-in instead of the API, so plumbing bugs surface before
-you spend anything.
+Run `--offline` first. It exercises every stage using a deterministic stand-in
+instead of the API, so plumbing bugs surface before you spend anything. Note
+that `--offline` numbers are not results: the stand-in names clusters from their
+top terms, and `artifacts/phase5_results.json` records `"offline": true` when a
+run was produced that way. Check that flag before quoting any figure.
 
 | Flag | Effect |
 |---|---|
@@ -142,6 +167,8 @@ you spend anything.
 ```
 config.py                 all paths and hyperparameters
 run_pipeline.py           end-to-end runner
+export_model.py           serving bundle from pipeline artifacts
+export_web.py             bundle -> JSON for the browser demo
 src/
   data.py                 Phase 0  clean + quarantine labels
   embed.py                Phase 1  MiniLM, or TF-IDF fallback
@@ -150,15 +177,35 @@ src/
   classify.py             Phase 4  downstream classifiers
   evaluate.py             Phase 5  alignment, ablations, error analysis
 verify_setup.py           preflight check for the live integrations
+deploy/                   Gradio app for local use
+docs/                     the published browser demo
 notebooks/
   01_clean_embed_cluster.ipynb
   03_llm_labeling_and_classifier.ipynb
   05_reveal_and_ablations.ipynb
-artifacts/                everything the pipeline writes
+artifacts/                everything the pipeline writes (gitignored)
 ```
 
 Use the notebooks to develop and to see the intermediate output; use
 `run_pipeline.py` to reproduce a full run in one command.
+
+---
+
+## The demo
+
+`docs/` serves a static page with no backend. `export_web.py` dumps the fitted
+vectorizer's vocabulary and IDF weights plus both models' coefficients to JSON,
+and the page reimplements the TF-IDF transform, the cleaning rules from
+`src/data.py`, and the softmax in JavaScript.
+
+Before writing anything, `export_web.py` reimplements the same arithmetic in
+plain Python and checks it against scikit-learn on sample text. It refuses to
+emit `model.json` if predictions disagree. Current agreement: max probability
+difference 1.5e-08, zero label mismatches.
+
+That the whole thing runs client-side is the point. The LLM is a training-time
+cost. Inference is a sparse dot product, and it belongs in the visitor's
+browser rather than on a server you pay for.
 
 ---
 
@@ -212,16 +259,16 @@ a real bug.
 
 ## Caveats
 
-- Offline-mode numbers use TF-IDF, not MiniLM. Real embeddings should be better;
-  nothing here has been run against the Gemini API.
-- `umap-learn` and `hdbscan` are optional. Density clustering prefers sklearn's
-  built-in HDBSCAN (1.3+); projection falls back to PCA when UMAP is missing.
-  The standalone `hdbscan` package needs a C extension and often fails to
-  install on Windows.
+- MiniLM has never run here; the "LSA" rows are TruncatedSVD, not sentence
+  embeddings.
+- The k-sweep table is from the offline stub run and has not been reproduced
+  live.
 - 7,600 rows is the AG News *test* split. The 120k train split gives more data
   and probably cleaner clusters.
-- The offline spot-check agreement figure is meaningless — the fake transport
-  assigns categories by crude keyword overlap. Only a live run gives a real
-  label-noise estimate.
-- Cost figures are order-of-magnitude only. Do not present the second decimal as
-  if it were measured.
+- Only one live labelling call has been made. Cluster naming is not
+  deterministic across runs, and a second call could return different names —
+  though on this clustering it would not change accuracy, since only the
+  cluster→class mapping affects the score.
+- Cost figures are order-of-magnitude only. The $0.002 API figure is real; the
+  $948 annotation figure is a wage estimate against a task nobody performed, so
+  the ratio between them is illustrative, not measured.
