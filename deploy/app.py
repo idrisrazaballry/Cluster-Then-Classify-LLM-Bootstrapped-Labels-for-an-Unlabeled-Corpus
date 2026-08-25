@@ -71,14 +71,14 @@ def classify(text: str):
         verdict = (
             f"**Both models say {top_ceil}.** Agreement on a clear-cut story is "
             f"the common case — it is the 82% of ceiling that bootstrapping "
-            f"recovers for free."
+            f"recovers without annotation."
         )
     else:
         verdict = (
             f"**They disagree.** The bootstrapped model says {top_boot} "
             f"({conf_boot:.0%} confident); the model trained on true labels says "
             f"{top_ceil}. This is the gap annotation would have closed — and "
-            f"note how confident the bootstrapped model is while being wrong."
+            f"Business stories are where this happens most."
         )
 
     return boot, ceil, verdict
@@ -100,14 +100,22 @@ on the real labels — the ceiling you are paying an annotator to reach.
 
 NOTE = """
 ---
-Business and Sci/Tech entangle: a chip maker's earnings is honestly both, and
-clustering cannot draw a line the taxonomy itself draws badly. The last two
-examples are built to trip it.
+**Where it fails.** Business is the weak class: recall 0.36 against precision
+0.87 -- the model finds barely a third of Business stories, though it is usually
+right when it does. The cause is upstream of the classifier. KMeans splits
+Business across two clusters, and the larger share lands in the cluster Gemini
+named World Politics. No labelling strategy recovers a distinction the
+clustering never drew.
 
-A classifier trained on bootstrapped labels scores **0.953** against its own
-held-out split while being **0.728** accurate against ground truth. That 95% is
-fidelity to KMeans, not accuracy — the most seductive number in the project,
-and it means nothing.
+**The seductive number.** The classifier scores 0.955 against its own held-out
+split while being 0.716 accurate against ground truth. That 95.5% is fidelity to
+KMeans, not accuracy -- it measures how well the classifier reproduces the
+clustering, including its mistakes.
+
+**What the LLM actually bought.** Swapping real Gemini labels for deterministic
+top-term strings changes accuracy by exactly zero, because renaming a cluster
+moves no documents. The LLM contributes readable class names derived without
+ground truth. The 80.9% of ceiling comes from the clustering.
 """
 
 EXAMPLES = [
