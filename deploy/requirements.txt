@@ -1,0 +1,8 @@
+# Serving only. No torch, no sentence-transformers, no umap-learn, no
+# google-generativeai -- inference never touches the LLM, which is the whole
+# point of the project.
+gradio==4.44.1
+scikit-learn==1.5.2
+joblib==1.4.2
+numpy==2.1.3
+pandas==2.2.3
