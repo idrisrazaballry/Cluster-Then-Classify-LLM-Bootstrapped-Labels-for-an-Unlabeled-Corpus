@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
-artifacts/
+.env
+artifacts/*
+!artifacts/.gitkeep
 deploy/model_bundle.joblib
 deploy/data.py
