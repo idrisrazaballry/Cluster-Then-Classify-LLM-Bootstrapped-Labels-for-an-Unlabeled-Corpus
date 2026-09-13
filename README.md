@@ -272,3 +272,11 @@ a real bug.
 - Cost figures are order-of-magnitude only. The $0.002 API figure is real; the
   $948 annotation figure is a wage estimate against a task nobody performed, so
   the ratio between them is illustrative, not measured.
+
+
+
+
+
+
+
+  dhdhjjbfrukjbdgjnvdgjn v
