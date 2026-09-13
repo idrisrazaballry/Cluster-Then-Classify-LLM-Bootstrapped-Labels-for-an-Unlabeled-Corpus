@@ -273,10 +273,3 @@ a real bug.
   $948 annotation figure is a wage estimate against a task nobody performed, so
   the ratio between them is illustrative, not measured.
 
-
-
-
-
-
-
-  dhdhjjbfrukjbdgjnvdgjn v
